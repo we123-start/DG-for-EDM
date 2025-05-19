@@ -1,0 +1,886 @@
+clear
+%% basic value
+x_left=0;x_right=0.25;
+x_right_exact=0.25;
+Nt=20000;
+J=80;
+Dapp=0.00002;
+beta1=100;
+beta2=1/12;
+h=(x_right-x_left)/J;
+final_t=15;
+dt=final_t/Nt;
+F=19/6;
+for j=1:J+1
+    x(j)=x_left+(j-1)*h;
+end
+p=4;%基函数的阶数
+p1=p;%积分点个数
+[xl,w]=gauleg(p1);%积分点x1以及权重w
+[P]=Lpoly(p1,xl);%相应积分点的勒让德多项式
+[D_P]=D_Lpoly(p1,xl);%相应积分点的勒让德多项式的导数
+PP=P';
+%% the initial value of u
+for j=1:J
+    x_loc(j,1)=x(j);
+    x_loc(j,p1+2)=x(j)+h;
+    for k=1:p1
+        tl=h/2*(xl(k)+1)+x(j);
+        x_loc(j,k+1)=tl;
+    end
+    for i=1:p1
+        f(i,j)=0;
+    end
+    u(:,1,j)=PP\f(:,j);
+    v(:,1,j)=PP\f(:,j);
+end
+for s=1:p1
+    temp(s)=(-1)^(s-1);
+end
+temp1=temp';
+wxminus=[0;1;3;6].*(2/h);
+wxplus=[0;1;-3;6].*(2/h);
+%% DG method with forword Euler
+time=0;
+kk=1;
+while(time<final_t)
+    if time+dt>final_t
+        dt=final_t-time;
+    end
+    kk=kk+1;
+    for i=1:p1
+        for m=1:p1
+            sum_loc1=sum(w.*P(i,:).*P(m,:));
+            M(i,m)=h/2*sum_loc1;
+            sum_loc2=sum(w.*D_P(m,:).*D_P(i,:));
+            D_xx(i,m)=2/h*sum_loc2;
+            sum_loc3=sum(w.*P(m,:).*D_P(i,:));
+            D_x(i,m)=sum_loc3;
+        end
+    end
+    %%%    forward Euler
+    for j=1:J
+        for i=1:p1
+            if j==1
+                uplus=sum(u(:,kk-1,j+1).*temp1(:));
+                uminus=sum(u(:,kk-1,j).*ones(p1,1));
+                penalty=h\beta1*(uplus-uminus);
+                uxplus=u(2,kk-1,j+1)*2/h+u(3,kk-1,j+1)*2/h*3*(-1)+u(4,kk-1,j+1)*2/h*6;
+                uxminus=u(2,kk-1,j)*2/h+u(3,kk-1,j)*2/h*3+u(4,kk-1,j)*2/h*6;
+                uxxplus=u(3,kk-1,j+1)*(2/h)^2*3+u(4,kk-1,j+1)*(2/h)^2*15*(-1);
+                uxxminus=u(3,kk-1,j)*(2/h)^2*3+u(4,kk-1,j)*(2/h)^2*15;
+                Ar=Dapp*(penalty+1/2*(uxplus+uxminus)+beta2*h*(uxxplus-uxxminus))-1/2*(uplus+uminus)-Dapp*(1/2*(uplus+uminus)-uminus)*wxminus(i);
+                uplus=sum(u(:,kk-1,j).*temp1(:));
+                if time+dt>10
+                    uminus=0;
+                else
+                    uminus=0.5;
+                end
+                penalty=h\beta1*(uplus-uminus);
+                uxplus=u(2,kk-1,j)*2/h+u(3,kk-1,j)*2/h*3*(-1)+u(4,kk-1,j)*2/h*6;
+                uxminus=0;
+                uxxplus=u(3,kk-1,j)*(2/h)^2*3+u(4,kk-1,j)*(2/h)^2*15*(-1);
+                uxxminus=0;
+                Al=(Dapp*(penalty+1/2*(uxplus+uxminus)+beta2*h*(uxxplus-uxxminus))-1/2*(uplus+uminus))*(-1).^(i-1)-Dapp*(1/2*(uplus+uminus)-uplus)*wxplus(i);
+                vplus=sum(v(:,kk-1,j+1).*temp1(:));
+                vminus=sum(v(:,kk-1,j).*ones(p1,1));
+                penalty=h\beta1*(vplus-vminus);
+                vxplus=v(2,kk-1,j+1)*2/h+v(3,kk-1,j+1)*2/h*3*(-1)+v(4,kk-1,j+1)*2/h*6;
+                vxminus=v(2,kk-1,j)*2/h+v(3,kk-1,j)*2/h*3+v(4,kk-1,j)*2/h*6;
+                vxxplus=v(3,kk-1,j+1)*(2/h)^2*3+v(4,kk-1,j+1)*(2/h)^2*15*(-1);
+                vxxminus=v(3,kk-1,j)*(2/h)^2*3+v(4,kk-1,j)*(2/h)^2*15;
+                AAr=Dapp*(penalty+1/2*(vxplus+vxminus)+beta2*h*(vxxplus-vxxminus))-1/2*(vplus+vminus)-Dapp*(1/2*(vplus+vminus)-vminus)*wxminus(i);
+                vplus=sum(v(:,kk-1,j).*temp1(:));
+                if time+dt>10
+                    vminus=0;
+                else
+                    vminus=0.5;
+                end
+                penalty=h\beta1*(vplus-vminus);
+                vxplus=v(2,kk-1,j)*2/h+v(3,kk-1,j)*2/h*3*(-1)+v(4,kk-1,j)*2/h*6;
+                vxminus=0;
+                vxxplus=v(3,kk-1,j)*(2/h)^2*3+v(4,kk-1,j)*(2/h)^2*15*(-1);
+                vxxminus=0;
+                AAl=(Dapp*(penalty+1/2*(vxplus+vxminus)+beta2*h*(vxxplus-vxxminus))-1/2*(vplus+vminus))*(-1).^(i-1)-Dapp*(1/2*(vplus+vminus)-vplus)*wxplus(i);
+            elseif j==J
+                uplus=sum(u(:,kk-1,j).*ones(p1,1));
+                uminus=sum(u(:,kk-1,j).*ones(p1,1));
+                penalty=h\beta1*(uplus-uminus);
+                uxplus=u(2,kk-1,j)*2/h+u(3,kk-1,j)*2/h*3*(-1)+u(4,kk-1,j)*2/h*6;
+                uxminus=u(2,kk-1,j)*2/h+u(3,kk-1,j)*2/h*3+u(4,kk-1,j)*2/h*6;
+                uxxplus=u(3,kk-1,j)*(2/h)^2*3+u(4,kk-1,j)*(2/h)^2*15*(-1);
+                uxxminus=u(3,kk-1,j)*(2/h)^2*3+u(4,kk-1,j)*(2/h)^2*15;
+                Ar=Dapp*(penalty+1/2*(uxplus+uxminus)+beta2*h*(uxxplus-uxxminus))-1/2*(uplus+uminus)-Dapp*(1/2*(uplus+uminus)-uminus)*wxminus(i);
+                uplus=sum(u(:,kk-1,j).*temp1(:));
+                uminus=sum(u(:,kk-1,j-1).*ones(p1,1));
+                penalty=h\beta1*(uplus-uminus);
+                uxplus=u(2,kk-1,j)*2/h+u(3,kk-1,j)*2/h*3*(-1)+u(4,kk-1,j)*2/h*6;
+                uxminus=u(2,kk-1,j-1)*2/h+u(3,kk-1,j-1)*2/h*3+u(4,kk-1,j-1)*2/h*6;
+                uxxplus=u(3,kk-1,j)*(2/h)^2*3+u(4,kk-1,j)*(2/h)^2*15*(-1);
+                uxxminus=u(3,kk-1,j-1)*(2/h)^2*3+u(4,kk-1,j-1)*(2/h)^2*15;
+                Al=(Dapp*(penalty+1/2*(uxplus+uxminus)+beta2*h*(uxxplus-uxxminus))-1/2*(uplus+uminus))*(-1).^(i-1)-Dapp*(1/2*(uplus+uminus)-uplus)*wxplus(i);
+                vplus=sum(v(:,kk-1,j).*ones(p1,1));
+                vminus=sum(v(:,kk-1,j).*ones(p1,1));
+                penalty=h\beta1*(vplus-vminus);
+                vxplus=v(2,kk-1,j)*2/h+v(3,kk-1,j)*2/h*3*(-1)+v(4,kk-1,j)*2/h*6;
+                vxminus=v(2,kk-1,j)*2/h+v(3,kk-1,j)*2/h*3+v(4,kk-1,j)*2/h*6;
+                vxxplus=v(3,kk-1,j)*(2/h)^2*3+v(4,kk-1,j)*(2/h)^2*15*(-1);
+                vxxminus=v(3,kk-1,j)*(2/h)^2*3+v(4,kk-1,j)*(2/h)^2*15;
+                AAr=Dapp*(penalty+1/2*(vxplus+vxminus)+beta2*h*(vxxplus-vxxminus))-1/2*(vplus+vminus)-Dapp*(1/2*(vplus+vminus)-vminus)*wxminus(i);
+                vplus=sum(v(:,kk-1,j).*temp1(:));
+                vminus=sum(v(:,kk-1,j-1).*ones(p1,1));
+                penalty=h\beta1*(vplus-vminus);
+                vxplus=v(2,kk-1,j)*2/h+v(3,kk-1,j)*2/h*3*(-1)+v(4,kk-1,j)*2/h*6;
+                vxminus=v(2,kk-1,j-1)*2/h+v(3,kk-1,j-1)*2/h*3+v(4,kk-1,j-1)*2/h*6;
+                vxxplus=v(3,kk-1,j)*(2/h)^2*3+v(4,kk-1,j)*(2/h)^2*15*(-1);
+                vxxminus=v(3,kk-1,j-1)*(2/h)^2*3+v(4,kk-1,j-1)*(2/h)^2*15;
+                AAl=(Dapp*(penalty+1/2*(vxplus+vxminus)+beta2*h*(vxxplus-vxxminus))-1/2*(vplus+vminus))*(-1).^(i-1)-Dapp*(1/2*(vplus+vminus)-vplus)*wxplus(i);
+            else
+                uplus=sum(u(:,kk-1,j+1).*temp1(:));
+                uminus=sum(u(:,kk-1,j).*ones(p1,1));
+                penalty=h\beta1*(uplus-uminus);
+                uxplus=u(2,kk-1,j+1)*2/h+u(3,kk-1,j+1)*2/h*3*(-1)+u(4,kk-1,j+1)*2/h*6;
+                uxminus=u(2,kk-1,j)*2/h+u(3,kk-1,j)*2/h*3+u(4,kk-1,j)*2/h*6;
+                uxxplus=u(3,kk-1,j+1)*(2/h)^2*3+u(4,kk-1,j+1)*(2/h)^2*15*(-1);
+                uxxminus=u(3,kk-1,j)*(2/h)^2*3+u(4,kk-1,j)*(2/h)^2*15;
+                Ar=Dapp*(penalty+1/2*(uxplus+uxminus)+beta2*h*(uxxplus-uxxminus))-1/2*(uplus+uminus)-Dapp*(1/2*(uplus+uminus)-uminus)*wxminus(i);
+                uplus=sum(u(:,kk-1,j).*temp1(:));
+                uminus=sum(u(:,kk-1,j-1).*ones(p1,1));
+                penalty=h\beta1*(uplus-uminus);
+                uxplus=u(2,kk-1,j)*2/h+u(3,kk-1,j)*2/h*3*(-1)+u(4,kk-1,j)*2/h*6;
+                uxminus=u(2,kk-1,j-1)*2/h+u(3,kk-1,j-1)*2/h*3+u(4,kk-1,j-1)*2/h*6;
+                uxxplus=u(3,kk-1,j)*(2/h)^2*3+u(4,kk-1,j)*(2/h)^2*15*(-1);
+                uxxminus=u(3,kk-1,j-1)*(2/h)^2*3+u(4,kk-1,j-1)*(2/h)^2*15;
+                Al=(Dapp*(penalty+1/2*(uxplus+uxminus)+beta2*h*(uxxplus-uxxminus))-1/2*(uplus+uminus))*(-1).^(i-1)-Dapp*(1/2*(uplus+uminus)-uplus)*wxplus(i);
+                vplus=sum(v(:,kk-1,j+1).*temp1(:));
+                vminus=sum(v(:,kk-1,j).*ones(p1,1));
+                penalty=h\beta1*(vplus-vminus);
+                vxplus=v(2,kk-1,j+1)*2/h+v(3,kk-1,j+1)*2/h*3*(-1)+v(4,kk-1,j+1)*2/h*6;
+                vxminus=v(2,kk-1,j)*2/h+v(3,kk-1,j)*2/h*3+v(4,kk-1,j)*2/h*6;
+                vxxplus=v(3,kk-1,j+1)*(2/h)^2*3+v(4,kk-1,j+1)*(2/h)^2*15*(-1);
+                vxxminus=v(3,kk-1,j)*(2/h)^2*3+v(4,kk-1,j)*(2/h)^2*15;
+                AAr=Dapp*(penalty+1/2*(vxplus+vxminus)+beta2*h*(vxxplus-vxxminus))-1/2*(vplus+vminus)-Dapp*(1/2*(vplus+vminus)-vminus)*wxminus(i);
+                vplus=sum(v(:,kk-1,j).*temp1(:));
+                vminus=sum(v(:,kk-1,j-1).*ones(p1,1));
+                penalty=h\beta1*(vplus-vminus);
+                vxplus=v(2,kk-1,j)*2/h+v(3,kk-1,j)*2/h*3*(-1)+v(4,kk-1,j)*2/h*6;
+                vxminus=v(2,kk-1,j-1)*2/h+v(3,kk-1,j-1)*2/h*3+v(4,kk-1,j-1)*2/h*6;
+                vxxplus=v(3,kk-1,j)*(2/h)^2*3+v(4,kk-1,j)*(2/h)^2*15*(-1);
+                vxxminus=v(3,kk-1,j-1)*(2/h)^2*3+v(4,kk-1,j-1)*(2/h)^2*15;
+                AAl=(Dapp*(penalty+1/2*(vxplus+vxminus)+beta2*h*(vxxplus-vxxminus))-1/2*(vplus+vminus))*(-1).^(i-1)-Dapp*(1/2*(vplus+vminus)-vplus)*wxplus(i);
+            end
+            A(i)=Ar-Al;
+            AA(i)=AAr-AAl;
+        end
+        %         W=M\(D_x-A)';
+        u(1:p1,kk,j)=u(1:p1,kk-1,j)+((1+5*F)*M)\(D_x*u(1:p1,kk-1,j)-Dapp*D_xx*u(1:p1,kk-1,j)+A')*dt;
+        v(1:p1,kk,j)=v(1:p1,kk-1,j)+((1+F)*M)\(D_x*v(1:p1,kk-1,j)-Dapp*D_xx*v(1:p1,kk-1,j)+AA')*dt;
+    end
+    %%% the limiter function down
+    for j=1:J
+        if j==1
+            q=p1;
+            while(q>1)
+                aa=(2*q-3)*u(q,kk,j);
+                b=u(q-1,kk,j+1)-u(q-1,kk,j);
+                %                 c=u(q-1,kk,j)-u(q-1,kk,j-1);
+                %                 c=u(q-1,kk,j)-u(q-1,kk,J);%Periodic boundary conditions
+                c=u(q-1,kk,j);%left boundary conditions
+                if time+dt>10  %left boundary conditions
+                    c=u(q-1,kk,j)-0;
+                else
+                    c=u(q-1,kk,j)-0.5;
+                end
+                d=minmod(aa,b,c);
+                u(q,kk,j)=1/(2*q-3)*d;
+                aa=(2*q-3)*v(q,kk,j);
+                b=v(q-1,kk,j+1)-v(q-1,kk,j);
+                %                 c=u(q-1,kk,j)-u(q-1,kk,j-1);
+                %                 c=u(q-1,kk,j)-u(q-1,kk,J);%Periodic boundary conditions
+                c=v(q-1,kk,j);%left boundary conditions
+                if time+dt>10  %left boundary conditions
+                    c=v(q-1,kk,j)-0;
+                else
+                    c=v(q-1,kk,j)-0.5;
+                end
+                d=minmod(aa,b,c);
+                v(q,kk,j)=1/(2*q-3)*d;
+                q=q-1;
+            end
+        elseif j==J
+            q=p1;
+            while(q>1)
+                aa=(2*q-3)*u(q,kk,j);
+                %                 b=u(q-1,kk,j+1)-u(q-1,kk,j);
+                %                 b=u(q-1,kk,1)-u(q-1,kk,j);%Periodic boundary conditions
+                b=u(q-1,kk,j)-u(q-1,kk,j);  %right boundary conditions
+                c=u(q-1,kk,j)-u(q-1,kk,j-1);
+                d=minmod(aa,b,c);
+                u(q,kk,j)=1/(2*q-3)*d;
+                aa=(2*q-3)*v(q,kk,j);
+                %                 b=u(q-1,kk,j+1)-u(q-1,kk,j);
+                %                 b=u(q-1,kk,1)-u(q-1,kk,j);%Periodic boundary conditions
+                b=v(q-1,kk,j)-v(q-1,kk,j);  %right boundary conditions
+                c=v(q-1,kk,j)-v(q-1,kk,j-1);
+                d=minmod(aa,b,c);
+                v(q,kk,j)=1/(2*q-3)*d;
+                q=q-1;
+            end
+        else
+            q=p1;
+            while(q>1)
+                aa=(2*q-3)*u(q,kk,j);
+                b=u(q-1,kk,j+1)-u(q-1,kk,j);
+                c=u(q-1,kk,j)-u(q-1,kk,j-1);
+                d=minmod(aa,b,c);
+                u(q,kk,j)=1/(2*q-3)*d;
+                aa=(2*q-3)*v(q,kk,j);
+                b=v(q-1,kk,j+1)-v(q-1,kk,j);
+                c=v(q-1,kk,j)-v(q-1,kk,j-1);
+                d=minmod(aa,b,c);
+                v(q,kk,j)=1/(2*q-3)*d;
+                q=q-1;
+            end
+        end
+    end
+    %%% the limiter function up
+
+    % %%% 3-Runge-Kutta method;
+    % % round one
+    % for j=1:J
+    %     for i=1:p1
+    %         if j==1
+    %             uplus=sum(u(:,kk-1,j+1).*temp1(:));
+    %             uminus=sum(u(:,kk-1,j).*ones(p1,1));
+    %             penalty=h\beta1*(uplus-uminus);
+    %             uxplus=u(2,kk-1,j+1)*2/h+u(3,kk-1,j+1)*2/h*3*(-1)+u(4,kk-1,j+1)*2/h*6;
+    %             uxminus=u(2,kk-1,j)*2/h+u(3,kk-1,j)*2/h*3+u(4,kk-1,j)*2/h*6;
+    %             uxxplus=u(3,kk-1,j+1)*(2/h)^2*3+u(4,kk-1,j+1)*(2/h)^2*15*(-1);
+    %             uxxminus=u(3,kk-1,j)*(2/h)^2*3+u(4,kk-1,j)*(2/h)^2*15;
+    %             Ar=Dapp*(penalty+1/2*(uxplus+uxminus)+beta2*h*(uxxplus-uxxminus))-1/2*(uplus+uminus)-Dapp*(1/2*(uplus+uminus)-uminus)*wxminus(i);
+    %             uplus=sum(u(:,kk-1,j).*temp1(:));
+    %             if time+dt>10
+    %                 uminus=0;
+    %             else
+    %                 uminus=0.5;
+    %             end
+    %             penalty=h\beta1*(uplus-uminus);
+    %             uxplus=u(2,kk-1,j)*2/h+u(3,kk-1,j)*2/h*3*(-1)+u(4,kk-1,j)*2/h*6;
+    %             uxminus=0;
+    %             uxxplus=u(3,kk-1,j)*(2/h)^2*3+u(4,kk-1,j)*(2/h)^2*15*(-1);
+    %             uxxminus=0;
+    %             Al=(Dapp*(penalty+1/2*(uxplus+uxminus)+beta2*h*(uxxplus-uxxminus))-1/2*(uplus+uminus))*(-1).^(i-1)-Dapp*(1/2*(uplus+uminus)-uplus)*wxplus(i);
+    %             vplus=sum(v(:,kk-1,j+1).*temp1(:));
+    %             vminus=sum(v(:,kk-1,j).*ones(p1,1));
+    %             penalty=h\beta1*(vplus-vminus);
+    %             vxplus=v(2,kk-1,j+1)*2/h+v(3,kk-1,j+1)*2/h*3*(-1)+v(4,kk-1,j+1)*2/h*6;
+    %             vxminus=v(2,kk-1,j)*2/h+v(3,kk-1,j)*2/h*3+v(4,kk-1,j)*2/h*6;
+    %             vxxplus=v(3,kk-1,j+1)*(2/h)^2*3+v(4,kk-1,j+1)*(2/h)^2*15*(-1);
+    %             vxxminus=v(3,kk-1,j)*(2/h)^2*3+v(4,kk-1,j)*(2/h)^2*15;
+    %             AAr=Dapp*(penalty+1/2*(vxplus+vxminus)+beta2*h*(vxxplus-vxxminus))-1/2*(vplus+vminus)-Dapp*(1/2*(vplus+vminus)-vminus)*wxminus(i);
+    %             vplus=sum(v(:,kk-1,j).*temp1(:));
+    %             if time+dt>10
+    %                 vminus=0;
+    %             else
+    %                 vminus=0.5;
+    %             end
+    %             penalty=h\beta1*(vplus-vminus);
+    %             vxplus=v(2,kk-1,j)*2/h+v(3,kk-1,j)*2/h*3*(-1)+v(4,kk-1,j)*2/h*6;
+    %             vxminus=0;
+    %             vxxplus=v(3,kk-1,j)*(2/h)^2*3+v(4,kk-1,j)*(2/h)^2*15*(-1);
+    %             vxxminus=0;
+    %             AAl=(Dapp*(penalty+1/2*(vxplus+vxminus)+beta2*h*(vxxplus-vxxminus))-1/2*(vplus+vminus))*(-1).^(i-1)-Dapp*(1/2*(vplus+vminus)-vplus)*wxplus(i);
+    %         elseif j==J
+    %             uplus=sum(u(:,kk-1,j).*ones(p1,1));
+    %             uminus=sum(u(:,kk-1,j).*ones(p1,1));
+    %             penalty=h\beta1*(uplus-uminus);
+    %             uxplus=u(2,kk-1,j)*2/h+u(3,kk-1,j)*2/h*3*(-1)+u(4,kk-1,j)*2/h*6;
+    %             uxminus=u(2,kk-1,j)*2/h+u(3,kk-1,j)*2/h*3+u(4,kk-1,j)*2/h*6;
+    %             uxxplus=u(3,kk-1,j)*(2/h)^2*3+u(4,kk-1,j)*(2/h)^2*15*(-1);
+    %             uxxminus=u(3,kk-1,j)*(2/h)^2*3+u(4,kk-1,j)*(2/h)^2*15;
+    %             Ar=Dapp*(penalty+1/2*(uxplus+uxminus)+beta2*h*(uxxplus-uxxminus))-1/2*(uplus+uminus)-Dapp*(1/2*(uplus+uminus)-uminus)*wxminus(i);
+    %             uplus=sum(u(:,kk-1,j).*temp1(:));
+    %             uminus=sum(u(:,kk-1,j-1).*ones(p1,1));
+    %             penalty=h\beta1*(uplus-uminus);
+    %             uxplus=u(2,kk-1,j)*2/h+u(3,kk-1,j)*2/h*3*(-1)+u(4,kk-1,j)*2/h*6;
+    %             uxminus=u(2,kk-1,j-1)*2/h+u(3,kk-1,j-1)*2/h*3+u(4,kk-1,j-1)*2/h*6;
+    %             uxxplus=u(3,kk-1,j)*(2/h)^2*3+u(4,kk-1,j)*(2/h)^2*15*(-1);
+    %             uxxminus=u(3,kk-1,j-1)*(2/h)^2*3+u(4,kk-1,j-1)*(2/h)^2*15;
+    %             Al=(Dapp*(penalty+1/2*(uxplus+uxminus)+beta2*h*(uxxplus-uxxminus))-1/2*(uplus+uminus))*(-1).^(i-1)-Dapp*(1/2*(uplus+uminus)-uplus)*wxplus(i);
+    %             vplus=sum(v(:,kk-1,j).*ones(p1,1));
+    %             vminus=sum(v(:,kk-1,j).*ones(p1,1));
+    %             penalty=h\beta1*(vplus-vminus);
+    %             vxplus=v(2,kk-1,j)*2/h+v(3,kk-1,j)*2/h*3*(-1)+v(4,kk-1,j)*2/h*6;
+    %             vxminus=v(2,kk-1,j)*2/h+v(3,kk-1,j)*2/h*3+v(4,kk-1,j)*2/h*6;
+    %             vxxplus=v(3,kk-1,j)*(2/h)^2*3+v(4,kk-1,j)*(2/h)^2*15*(-1);
+    %             vxxminus=v(3,kk-1,j)*(2/h)^2*3+v(4,kk-1,j)*(2/h)^2*15;
+    %             AAr=Dapp*(penalty+1/2*(vxplus+vxminus)+beta2*h*(vxxplus-vxxminus))-1/2*(vplus+vminus)-Dapp*(1/2*(vplus+vminus)-vminus)*wxminus(i);
+    %             vplus=sum(v(:,kk-1,j).*temp1(:));
+    %             vminus=sum(v(:,kk-1,j-1).*ones(p1,1));
+    %             penalty=h\beta1*(vplus-vminus);
+    %             vxplus=v(2,kk-1,j)*2/h+v(3,kk-1,j)*2/h*3*(-1)+v(4,kk-1,j)*2/h*6;
+    %             vxminus=v(2,kk-1,j-1)*2/h+v(3,kk-1,j-1)*2/h*3+v(4,kk-1,j-1)*2/h*6;
+    %             vxxplus=v(3,kk-1,j)*(2/h)^2*3+v(4,kk-1,j)*(2/h)^2*15*(-1);
+    %             vxxminus=v(3,kk-1,j-1)*(2/h)^2*3+v(4,kk-1,j-1)*(2/h)^2*15;
+    %             AAl=(Dapp*(penalty+1/2*(vxplus+vxminus)+beta2*h*(vxxplus-vxxminus))-1/2*(vplus+vminus))*(-1).^(i-1)-Dapp*(1/2*(vplus+vminus)-vplus)*wxplus(i);
+    %         else
+    %             uplus=sum(u(:,kk-1,j+1).*temp1(:));
+    %             uminus=sum(u(:,kk-1,j).*ones(p1,1));
+    %             penalty=h\beta1*(uplus-uminus);
+    %             uxplus=u(2,kk-1,j+1)*2/h+u(3,kk-1,j+1)*2/h*3*(-1)+u(4,kk-1,j+1)*2/h*6;
+    %             uxminus=u(2,kk-1,j)*2/h+u(3,kk-1,j)*2/h*3+u(4,kk-1,j)*2/h*6;
+    %             uxxplus=u(3,kk-1,j+1)*(2/h)^2*3+u(4,kk-1,j+1)*(2/h)^2*15*(-1);
+    %             uxxminus=u(3,kk-1,j)*(2/h)^2*3+u(4,kk-1,j)*(2/h)^2*15;
+    %             Ar=Dapp*(penalty+1/2*(uxplus+uxminus)+beta2*h*(uxxplus-uxxminus))-1/2*(uplus+uminus)-Dapp*(1/2*(uplus+uminus)-uminus)*wxminus(i);
+    %             uplus=sum(u(:,kk-1,j).*temp1(:));
+    %             uminus=sum(u(:,kk-1,j-1).*ones(p1,1));
+    %             penalty=h\beta1*(uplus-uminus);
+    %             uxplus=u(2,kk-1,j)*2/h+u(3,kk-1,j)*2/h*3*(-1)+u(4,kk-1,j)*2/h*6;
+    %             uxminus=u(2,kk-1,j-1)*2/h+u(3,kk-1,j-1)*2/h*3+u(4,kk-1,j-1)*2/h*6;
+    %             uxxplus=u(3,kk-1,j)*(2/h)^2*3+u(4,kk-1,j)*(2/h)^2*15*(-1);
+    %             uxxminus=u(3,kk-1,j-1)*(2/h)^2*3+u(4,kk-1,j-1)*(2/h)^2*15;
+    %             Al=(Dapp*(penalty+1/2*(uxplus+uxminus)+beta2*h*(uxxplus-uxxminus))-1/2*(uplus+uminus))*(-1).^(i-1)-Dapp*(1/2*(uplus+uminus)-uplus)*wxplus(i);
+    %             vplus=sum(v(:,kk-1,j+1).*temp1(:));
+    %             vminus=sum(v(:,kk-1,j).*ones(p1,1));
+    %             penalty=h\beta1*(vplus-vminus);
+    %             vxplus=v(2,kk-1,j+1)*2/h+v(3,kk-1,j+1)*2/h*3*(-1)+v(4,kk-1,j+1)*2/h*6;
+    %             vxminus=v(2,kk-1,j)*2/h+v(3,kk-1,j)*2/h*3+v(4,kk-1,j)*2/h*6;
+    %             vxxplus=v(3,kk-1,j+1)*(2/h)^2*3+v(4,kk-1,j+1)*(2/h)^2*15*(-1);
+    %             vxxminus=v(3,kk-1,j)*(2/h)^2*3+v(4,kk-1,j)*(2/h)^2*15;
+    %             AAr=Dapp*(penalty+1/2*(vxplus+vxminus)+beta2*h*(vxxplus-vxxminus))-1/2*(vplus+vminus)-Dapp*(1/2*(vplus+vminus)-vminus)*wxminus(i);
+    %             vplus=sum(v(:,kk-1,j).*temp1(:));
+    %             vminus=sum(v(:,kk-1,j-1).*ones(p1,1));
+    %             penalty=h\beta1*(vplus-vminus);
+    %             vxplus=v(2,kk-1,j)*2/h+v(3,kk-1,j)*2/h*3*(-1)+v(4,kk-1,j)*2/h*6;
+    %             vxminus=v(2,kk-1,j-1)*2/h+v(3,kk-1,j-1)*2/h*3+v(4,kk-1,j-1)*2/h*6;
+    %             vxxplus=v(3,kk-1,j)*(2/h)^2*3+v(4,kk-1,j)*(2/h)^2*15*(-1);
+    %             vxxminus=v(3,kk-1,j-1)*(2/h)^2*3+v(4,kk-1,j-1)*(2/h)^2*15;
+    %             AAl=(Dapp*(penalty+1/2*(vxplus+vxminus)+beta2*h*(vxxplus-vxxminus))-1/2*(vplus+vminus))*(-1).^(i-1)-Dapp*(1/2*(vplus+vminus)-vplus)*wxplus(i);
+    %         end
+    %         A(i)=Ar-Al;
+    %         AA(i)=AAr-AAl;
+    %     end
+    %     %         W=M\(D_x-A)';
+    %     u1(1:p1,kk-1,j)=u(1:p1,kk-1,j)+((1+5*F)*M)\(D_x*u(1:p1,kk-1,j)-Dapp*D_xx*u(1:p1,kk-1,j)+A')*dt;
+    %     v1(1:p1,kk-1,j)=v(1:p1,kk-1,j)+((1+F)*M)\(D_x*v(1:p1,kk-1,j)-Dapp*D_xx*v(1:p1,kk-1,j)+AA')*dt;
+    % end
+    % %%% the limiter function down
+    % for j=1:J
+    %     if j==1
+    %         q=p1;
+    %         while(q>1)
+    %             aa=(2*q-3)*u1(q,kk-1,j);
+    %             b=u1(q-1,kk-1,j+1)-u1(q-1,kk-1,j);
+    %             % c=u1(q-1,kk-1,j)-u1(q-1,kk-1,j-1);
+    %             % c=u1(q-1,kk-1,j)-u1(q-1,kk-1,J);%Periodic boundary conditions
+    %             c=u1(q-1,kk-1,j);%left boundary conditions
+    %             if time+dt>10 %left boundary conditions
+    %                 c=u1(q-1,kk-1,j)-0;
+    %             else
+    %                 c=u1(q-1,kk-1,j)-0.5;
+    %             end
+    %             d=minmod(aa,b,c);
+    %             u1(q,kk-1,j)=1/(2*q-3)*d;
+    %             aa=(2*q-3)*v1(q,kk-1,j);
+    %             b=v1(q-1,kk-1,j+1)-v1(q-1,kk-1,j);
+    %             % c=u1(q-1,kk-1,j)-u1(q-1,kk-1,j-1);
+    %             % c=u1(q-1,kk-1,j)-u1(q-1,kk-1,J);%Periodic boundary conditions
+    %             c=v1(q-1,kk-1,j);%left boundary conditions
+    %             if time+dt>10 %left boundary conditions
+    %                 c=v1(q-1,kk-1,j)-0;
+    %             else
+    %                 c=v1(q-1,kk-1,j)-0.5;
+    %             end
+    %             d=minmod(aa,b,c);
+    %             v1(q,kk-1,j)=1/(2*q-3)*d;
+    %             q=q-1;
+    %         end
+    %     elseif j==J
+    %         q=p1;
+    %         while(q>1)
+    %             aa=(2*q-3)*u1(q,kk-1,j);
+    %             % b=u1(q-1,kk-1,j+1)-u1(q-1,kk-1,j);
+    %             % b=u1(q-1,kk-1,1)-u1(q-1,kk-1,j);%Periodic boundary conditions
+    %             b=u1(q-1,kk-1,j)-u1(q-1,kk-1,j); %right boundary conditions
+    %             c=u1(q-1,kk-1,j)-u1(q-1,kk-1,j-1);
+    %             d=minmod(aa,b,c);
+    %             u1(q,kk-1,j)=1/(2*q-3)*d;
+    %             aa=(2*q-3)*v1(q,kk-1,j);
+    %             % b=u1(q-1,kk-1,j+1)-u1(q-1,kk-1,j);
+    %             % b=u1(q-1,kk-1,1)-u1(q-1,kk-1,j);%Periodic boundary conditions
+    %             b=v1(q-1,kk-1,j)-v1(q-1,kk-1,j); %right boundary conditions
+    %             c=v1(q-1,kk-1,j)-v1(q-1,kk-1,j-1);
+    %             d=minmod(aa,b,c);
+    %             v1(q,kk-1,j)=1/(2*q-3)*d;
+    %             q=q-1;
+    %         end
+    %     else
+    %         q=p1;
+    %         while(q>1)
+    %             aa=(2*q-3)*u1(q,kk-1,j);
+    %             b=u1(q-1,kk-1,j+1)-u1(q-1,kk-1,j);
+    %             c=u1(q-1,kk-1,j)-u1(q-1,kk-1,j-1);
+    %             d=minmod(aa,b,c);
+    %             u1(q,kk-1,j)=1/(2*q-3)*d;
+    %             aa=(2*q-3)*v1(q,kk-1,j);
+    %             b=v1(q-1,kk-1,j+1)-v1(q-1,kk-1,j);
+    %             c=v1(q-1,kk-1,j)-v1(q-1,kk-1,j-1);
+    %             d=minmod(aa,b,c);
+    %             v1(q,kk-1,j)=1/(2*q-3)*d;
+    %             q=q-1;
+    %         end
+    %     end
+    % end
+    % %%% the limiter function up
+    % 
+    % % round two
+    % for j=1:J
+    %     for i=1:p1
+    %         if j==1
+    %             u1plus=sum(u1(:,kk-1,j+1).*temp1(:));
+    %             u1minus=sum(u1(:,kk-1,j).*ones(p1,1));
+    %             penalty=h\beta1*(u1plus-u1minus);
+    %             u1xplus=u1(2,kk-1,j+1)*2/h+u1(3,kk-1,j+1)*2/h*3*(-1)+u1(4,kk-1,j+1)*2/h*6;
+    %             u1xminus=u1(2,kk-1,j)*2/h+u1(3,kk-1,j)*2/h*3+u1(4,kk-1,j)*2/h*6;
+    %             u1xxplus=u1(3,kk-1,j+1)*(2/h)^2*3+u1(4,kk-1,j+1)*(2/h)^2*15*(-1);
+    %             u1xxminus=u1(3,kk-1,j)*(2/h)^2*3+u1(4,kk-1,j)*(2/h)^2*15;
+    %             Ar=Dapp*(penalty+1/2*(u1xplus+u1xminus)+beta2*h*(u1xxplus-u1xxminus))-1/2*(u1plus+u1minus)-Dapp*(1/2*(u1plus+u1minus)-u1minus)*wxminus(i);
+    %             u1plus=sum(u1(:,kk-1,j).*temp1(:));
+    %             if time+dt>10
+    %                 u1minus=0;
+    %             else
+    %                 u1minus=0.5;
+    %             end
+    %             penalty=h\beta1*(u1plus-u1minus);
+    %             u1xplus=u1(2,kk-1,j)*2/h+u1(3,kk-1,j)*2/h*3*(-1)+u1(4,kk-1,j)*2/h*6;
+    %             u1xminus=0;
+    %             u1xxplus=u1(3,kk-1,j)*(2/h)^2*3+u1(4,kk-1,j)*(2/h)^2*15*(-1);
+    %             u1xxminus=0;
+    %             Al=(Dapp*(penalty+1/2*(u1xplus+u1xminus)+beta2*h*(u1xxplus-u1xxminus))-1/2*(u1plus+u1minus))*(-1).^(i-1)-Dapp*(1/2*(u1plus+u1minus)-u1plus)*wxplus(i);
+    %             v1plus=sum(v1(:,kk-1,j+1).*temp1(:));
+    %             v1minus=sum(v1(:,kk-1,j).*ones(p1,1));
+    %             penalty=h\beta1*(v1plus-v1minus);
+    %             v1xplus=v1(2,kk-1,j+1)*2/h+v1(3,kk-1,j+1)*2/h*3*(-1)+v1(4,kk-1,j+1)*2/h*6;
+    %             v1xminus=v1(2,kk-1,j)*2/h+v1(3,kk-1,j)*2/h*3+v1(4,kk-1,j)*2/h*6;
+    %             v1xxplus=v1(3,kk-1,j+1)*(2/h)^2*3+v1(4,kk-1,j+1)*(2/h)^2*15*(-1);
+    %             v1xxminus=v1(3,kk-1,j)*(2/h)^2*3+v1(4,kk-1,j)*(2/h)^2*15;
+    %             AAr=Dapp*(penalty+1/2*(v1xplus+v1xminus)+beta2*h*(v1xxplus-v1xxminus))-1/2*(v1plus+v1minus)-Dapp*(1/2*(v1plus+v1minus)-v1minus)*wxminus(i);
+    %             v1plus=sum(v1(:,kk-1,j).*temp1(:));
+    %             if time+dt>10
+    %                 v1minus=0;
+    %             else
+    %                 v1minus=0.5;
+    %             end
+    %             penalty=h\beta1*(v1plus-v1minus);
+    %             v1xplus=v1(2,kk-1,j)*2/h+v1(3,kk-1,j)*2/h*3*(-1)+v1(4,kk-1,j)*2/h*6;
+    %             v1xminus=0;
+    %             v1xxplus=v1(3,kk-1,j)*(2/h)^2*3+v1(4,kk-1,j)*(2/h)^2*15*(-1);
+    %             v1xxminus=0;
+    %             AAl=(Dapp*(penalty+1/2*(v1xplus+v1xminus)+beta2*h*(v1xxplus-v1xxminus))-1/2*(v1plus+v1minus))*(-1).^(i-1)-Dapp*(1/2*(v1plus+v1minus)-v1plus)*wxplus(i);
+    %         elseif j==J
+    %             u1plus=sum(u1(:,kk-1,j).*ones(p1,1));
+    %             u1minus=sum(u1(:,kk-1,j).*ones(p1,1));
+    %             penalty=h\beta1*(u1plus-u1minus);
+    %             u1xplus=u1(2,kk-1,j)*2/h+u1(3,kk-1,j)*2/h*3*(-1)+u1(4,kk-1,j)*2/h*6;
+    %             u1xminus=u1(2,kk-1,j)*2/h+u1(3,kk-1,j)*2/h*3+u1(4,kk-1,j)*2/h*6;
+    %             u1xxplus=u1(3,kk-1,j)*(2/h)^2*3+u1(4,kk-1,j)*(2/h)^2*15*(-1);
+    %             u1xxminus=u1(3,kk-1,j)*(2/h)^2*3+u1(4,kk-1,j)*(2/h)^2*15;
+    %             Ar=Dapp*(penalty+1/2*(u1xplus+u1xminus)+beta2*h*(u1xxplus-u1xxminus))-1/2*(u1plus+u1minus)-Dapp*(1/2*(u1plus+u1minus)-u1minus)*wxminus(i);
+    %             u1plus=sum(u1(:,kk-1,j).*temp1(:));
+    %             u1minus=sum(u1(:,kk-1,j-1).*ones(p1,1));
+    %             penalty=h\beta1*(u1plus-u1minus);
+    %             u1xplus=u1(2,kk-1,j)*2/h+u1(3,kk-1,j)*2/h*3*(-1)+u1(4,kk-1,j)*2/h*6;
+    %             u1xminus=u1(2,kk-1,j-1)*2/h+u1(3,kk-1,j-1)*2/h*3+u1(4,kk-1,j-1)*2/h*6;
+    %             u1xxplus=u1(3,kk-1,j)*(2/h)^2*3+u1(4,kk-1,j)*(2/h)^2*15*(-1);
+    %             u1xxminus=u1(3,kk-1,j-1)*(2/h)^2*3+u1(4,kk-1,j-1)*(2/h)^2*15;
+    %             Al=(Dapp*(penalty+1/2*(u1xplus+u1xminus)+beta2*h*(u1xxplus-u1xxminus))-1/2*(u1plus+u1minus))*(-1).^(i-1)-Dapp*(1/2*(u1plus+u1minus)-u1plus)*wxplus(i);
+    %             v1plus=sum(v1(:,kk-1,j).*ones(p1,1));
+    %             v1minus=sum(v1(:,kk-1,j).*ones(p1,1));
+    %             penalty=h\beta1*(v1plus-v1minus);
+    %             v1xplus=v1(2,kk-1,j)*2/h+v1(3,kk-1,j)*2/h*3*(-1)+v1(4,kk-1,j)*2/h*6;
+    %             v1xminus=v1(2,kk-1,j)*2/h+v1(3,kk-1,j)*2/h*3+v1(4,kk-1,j)*2/h*6;
+    %             v1xxplus=v1(3,kk-1,j)*(2/h)^2*3+v1(4,kk-1,j)*(2/h)^2*15*(-1);
+    %             v1xxminus=v1(3,kk-1,j)*(2/h)^2*3+v1(4,kk-1,j)*(2/h)^2*15;
+    %             AAr=Dapp*(penalty+1/2*(v1xplus+v1xminus)+beta2*h*(v1xxplus-v1xxminus))-1/2*(v1plus+v1minus)-Dapp*(1/2*(v1plus+v1minus)-v1minus)*wxminus(i);
+    %             v1plus=sum(v1(:,kk-1,j).*temp1(:));
+    %             v1minus=sum(v1(:,kk-1,j-1).*ones(p1,1));
+    %             penalty=h\beta1*(v1plus-v1minus);
+    %             v1xplus=v1(2,kk-1,j)*2/h+v1(3,kk-1,j)*2/h*3*(-1)+v1(4,kk-1,j)*2/h*6;
+    %             v1xminus=v1(2,kk-1,j-1)*2/h+v1(3,kk-1,j-1)*2/h*3+v1(4,kk-1,j-1)*2/h*6;
+    %             v1xxplus=v1(3,kk-1,j)*(2/h)^2*3+v1(4,kk-1,j)*(2/h)^2*15*(-1);
+    %             v1xxminus=v1(3,kk-1,j-1)*(2/h)^2*3+v1(4,kk-1,j-1)*(2/h)^2*15;
+    %             AAl=(Dapp*(penalty+1/2*(v1xplus+v1xminus)+beta2*h*(v1xxplus-v1xxminus))-1/2*(v1plus+v1minus))*(-1).^(i-1)-Dapp*(1/2*(v1plus+v1minus)-v1plus)*wxplus(i);
+    %         else
+    %             u1plus=sum(u1(:,kk-1,j+1).*temp1(:));
+    %             u1minus=sum(u1(:,kk-1,j).*ones(p1,1));
+    %             penalty=h\beta1*(u1plus-u1minus);
+    %             u1xplus=u1(2,kk-1,j+1)*2/h+u1(3,kk-1,j+1)*2/h*3*(-1)+u1(4,kk-1,j+1)*2/h*6;
+    %             u1xminus=u1(2,kk-1,j)*2/h+u1(3,kk-1,j)*2/h*3+u1(4,kk-1,j)*2/h*6;
+    %             u1xxplus=u1(3,kk-1,j+1)*(2/h)^2*3+u1(4,kk-1,j+1)*(2/h)^2*15*(-1);
+    %             u1xxminus=u1(3,kk-1,j)*(2/h)^2*3+u1(4,kk-1,j)*(2/h)^2*15;
+    %             Ar=Dapp*(penalty+1/2*(u1xplus+u1xminus)+beta2*h*(u1xxplus-u1xxminus))-1/2*(u1plus+u1minus)-Dapp*(1/2*(u1plus+u1minus)-u1minus)*wxminus(i);
+    %             u1plus=sum(u1(:,kk-1,j).*temp1(:));
+    %             u1minus=sum(u1(:,kk-1,j-1).*ones(p1,1));
+    %             penalty=h\beta1*(u1plus-u1minus);
+    %             u1xplus=u1(2,kk-1,j)*2/h+u1(3,kk-1,j)*2/h*3*(-1)+u1(4,kk-1,j)*2/h*6;
+    %             u1xminus=u1(2,kk-1,j-1)*2/h+u1(3,kk-1,j-1)*2/h*3+u1(4,kk-1,j-1)*2/h*6;
+    %             u1xxplus=u1(3,kk-1,j)*(2/h)^2*3+u1(4,kk-1,j)*(2/h)^2*15*(-1);
+    %             u1xxminus=u1(3,kk-1,j-1)*(2/h)^2*3+u1(4,kk-1,j-1)*(2/h)^2*15;
+    %             Al=(Dapp*(penalty+1/2*(u1xplus+u1xminus)+beta2*h*(u1xxplus-u1xxminus))-1/2*(u1plus+u1minus))*(-1).^(i-1)-Dapp*(1/2*(u1plus+u1minus)-u1plus)*wxplus(i);
+    %             v1plus=sum(v1(:,kk-1,j+1).*temp1(:));
+    %             v1minus=sum(v1(:,kk-1,j).*ones(p1,1));
+    %             penalty=h\beta1*(v1plus-v1minus);
+    %             v1xplus=v1(2,kk-1,j+1)*2/h+v1(3,kk-1,j+1)*2/h*3*(-1)+v1(4,kk-1,j+1)*2/h*6;
+    %             v1xminus=v1(2,kk-1,j)*2/h+v1(3,kk-1,j)*2/h*3+v1(4,kk-1,j)*2/h*6;
+    %             v1xxplus=v1(3,kk-1,j+1)*(2/h)^2*3+v1(4,kk-1,j+1)*(2/h)^2*15*(-1);
+    %             v1xxminus=v1(3,kk-1,j)*(2/h)^2*3+v1(4,kk-1,j)*(2/h)^2*15;
+    %             AAr=Dapp*(penalty+1/2*(v1xplus+v1xminus)+beta2*h*(v1xxplus-v1xxminus))-1/2*(v1plus+v1minus)-Dapp*(1/2*(v1plus+v1minus)-v1minus)*wxminus(i);
+    %             v1plus=sum(v1(:,kk-1,j).*temp1(:));
+    %             v1minus=sum(v1(:,kk-1,j-1).*ones(p1,1));
+    %             penalty=h\beta1*(v1plus-v1minus);
+    %             v1xplus=v1(2,kk-1,j)*2/h+v1(3,kk-1,j)*2/h*3*(-1)+v1(4,kk-1,j)*2/h*6;
+    %             v1xminus=v1(2,kk-1,j-1)*2/h+v1(3,kk-1,j-1)*2/h*3+v1(4,kk-1,j-1)*2/h*6;
+    %             v1xxplus=v1(3,kk-1,j)*(2/h)^2*3+v1(4,kk-1,j)*(2/h)^2*15*(-1);
+    %             v1xxminus=v1(3,kk-1,j-1)*(2/h)^2*3+v1(4,kk-1,j-1)*(2/h)^2*15;
+    %             AAl=(Dapp*(penalty+1/2*(v1xplus+v1xminus)+beta2*h*(v1xxplus-v1xxminus))-1/2*(v1plus+v1minus))*(-1).^(i-1)-Dapp*(1/2*(v1plus+v1minus)-v1plus)*wxplus(i);
+    %         end
+    %         A(i)=Ar-Al;
+    %         AA(i)=AAr-AAl;
+    %     end
+    %     % W=M\(D_x-A)';
+    %     u2(1:p1,kk-1,j)=u1(1:p1,kk-1,j)+((1+5*F)*M)\(D_x*u1(1:p1,kk-1,j)-Dapp*D_xx*u1(1:p1,kk-1,j)+A')*dt;
+    %     v2(1:p1,kk-1,j)=v1(1:p1,kk-1,j)+((1+F)*M)\(D_x*v1(1:p1,kk-1,j)-Dapp*D_xx*v1(1:p1,kk-1,j)+AA')*dt;
+    % end
+    % %%% the limiter function down
+    % for j=1:J
+    %     if j==1
+    %         q=p1;
+    %         while(q>1)
+    %             aa=(2*q-3)*u2(q,kk-1,j);
+    %             b=u2(q-1,kk-1,j+1)-u2(q-1,kk-1,j);
+    %             % c=u2(q-1,kk-1,j)-u2(q-1,kk-1,j-1);
+    %             % c=u2(q-1,kk-1,j)-u2(q-1,kk-1,J);%Periodic boundary conditions
+    %             c=u2(q-1,kk-1,j);%left boundary conditions
+    %             if time+dt>10 %left boundary conditions
+    %                 c=u2(q-1,kk-1,j)-0;
+    %             else
+    %                 c=u2(q-1,kk-1,j)-0.5;
+    %             end
+    %             d=minmod(aa,b,c);
+    %             u2(q,kk-1,j)=1/(2*q-3)*d;
+    %             aa=(2*q-3)*v2(q,kk-1,j);
+    %             b=v2(q-1,kk-1,j+1)-v2(q-1,kk-1,j);
+    %             % c=u2(q-1,kk-1,j)-u2(q-1,kk-1,j-1);
+    %             % c=u2(q-1,kk-1,j)-u2(q-1,kk-1,J);%Periodic bou2ndary conditions
+    %             c=v2(q-1,kk-1,j);%left boundary conditions
+    %             if time+dt>10 %left boundary conditions
+    %                 c=v2(q-1,kk-1,j)-0;
+    %             else
+    %                 c=v2(q-1,kk-1,j)-0.5;
+    %             end
+    %             d=minmod(aa,b,c);
+    %             v2(q,kk-1,j)=1/(2*q-3)*d;
+    %             q=q-1;
+    %         end
+    %     elseif j==J
+    %         q=p1;
+    %         while(q>1)
+    %             aa=(2*q-3)*u2(q,kk-1,j);
+    %             % b=u2(q-1,kk-1,j+1)-u2(q-1,kk-1,j);
+    %             % b=u2(q-1,kk-1,1)-u2(q-1,kk-1,j);%Periodic boundary conditions
+    %             b=u2(q-1,kk-1,j)-u2(q-1,kk-1,j); %right boundary conditions
+    %             c=u2(q-1,kk-1,j)-u2(q-1,kk-1,j-1);
+    %             d=minmod(aa,b,c);
+    %             u2(q,kk-1,j)=1/(2*q-3)*d;
+    %             aa=(2*q-3)*v2(q,kk-1,j);
+    %             % b=u2(q-1,kk-1,j+1)-u2(q-1,kk-1,j);
+    %             % b=u2(q-1,kk-1,1)-u2(q-1,kk-1,j);%Periodic boundary conditions
+    %             b=v2(q-1,kk-1,j)-v2(q-1,kk-1,j); %right boundary conditions
+    %             c=v2(q-1,kk-1,j)-v2(q-1,kk-1,j-1);
+    %             d=minmod(aa,b,c);
+    %             v2(q,kk-1,j)=1/(2*q-3)*d;
+    %             q=q-1;
+    %         end
+    %     else
+    %         q=p1;
+    %         while(q>1)
+    %             aa=(2*q-3)*u2(q,kk-1,j);
+    %             b=u2(q-1,kk-1,j+1)-u2(q-1,kk-1,j);
+    %             c=u2(q-1,kk-1,j)-u2(q-1,kk-1,j-1);
+    %             d=minmod(aa,b,c);
+    %             u2(q,kk-1,j)=1/(2*q-3)*d;
+    %             aa=(2*q-3)*v2(q,kk-1,j);
+    %             b=v2(q-1,kk-1,j+1)-v2(q-1,kk-1,j);
+    %             c=v2(q-1,kk-1,j)-v2(q-1,kk-1,j-1);
+    %             d=minmod(aa,b,c);
+    %             v2(q,kk-1,j)=1/(2*q-3)*d;
+    %             q=q-1;
+    %         end
+    %     end
+    % end
+    % %%% the limiter function up
+    % % round three
+    % for j=1:J
+    %     for i=1:p1
+    %         if j==1
+    %             u2plus=sum(u2(:,kk-1,j+1).*temp1(:));
+    %             u2minus=sum(u2(:,kk-1,j).*ones(p1,1));
+    %             penalty=h\beta1*(u2plus-u2minus);
+    %             u2xplus=u2(2,kk-1,j+1)*2/h+u2(3,kk-1,j+1)*2/h*3*(-1)+u2(4,kk-1,j+1)*2/h*6;
+    %             u2xminus=u2(2,kk-1,j)*2/h+u2(3,kk-1,j)*2/h*3+u2(4,kk-1,j)*2/h*6;
+    %             u2xxplus=u2(3,kk-1,j+1)*(2/h)^2*3+u2(4,kk-1,j+1)*(2/h)^2*15*(-1);
+    %             u2xxminus=u2(3,kk-1,j)*(2/h)^2*3+u2(4,kk-1,j)*(2/h)^2*15;
+    %             Ar=Dapp*(penalty+1/2*(u2xplus+u2xminus)+beta2*h*(u2xxplus-u2xxminus))-1/2*(u2plus+u2minus)-Dapp*(1/2*(u2plus+u2minus)-u2minus)*wxminus(i);
+    %             u2plus=sum(u2(:,kk-1,j).*temp1(:));
+    %             if time+dt>10
+    %                 u2minus=0;
+    %             else
+    %                 u2minus=0.5;
+    %             end
+    %             penalty=h\beta1*(u2plus-u2minus);
+    %             u2xplus=u2(2,kk-1,j)*2/h+u2(3,kk-1,j)*2/h*3*(-1)+u2(4,kk-1,j)*2/h*6;
+    %             u2xminus=0;
+    %             u2xxplus=u2(3,kk-1,j)*(2/h)^2*3+u2(4,kk-1,j)*(2/h)^2*15*(-1);
+    %             u2xxminus=0;
+    %             Al=(Dapp*(penalty+1/2*(u2xplus+u2xminus)+beta2*h*(u2xxplus-u2xxminus))-1/2*(u2plus+u2minus))*(-1).^(i-1)-Dapp*(1/2*(u2plus+u2minus)-u2plus)*wxplus(i);
+    %             v2plus=sum(v2(:,kk-1,j+1).*temp1(:));
+    %             v2minus=sum(v2(:,kk-1,j).*ones(p1,1));
+    %             penalty=h\beta1*(v2plus-v2minus);
+    %             v2xplus=v2(2,kk-1,j+1)*2/h+v2(3,kk-1,j+1)*2/h*3*(-1)+v2(4,kk-1,j+1)*2/h*6;
+    %             v2xminus=v2(2,kk-1,j)*2/h+v2(3,kk-1,j)*2/h*3+v2(4,kk-1,j)*2/h*6;
+    %             v2xxplus=v2(3,kk-1,j+1)*(2/h)^2*3+v2(4,kk-1,j+1)*(2/h)^2*15*(-1);
+    %             v2xxminus=v2(3,kk-1,j)*(2/h)^2*3+v2(4,kk-1,j)*(2/h)^2*15;
+    %             AAr=Dapp*(penalty+1/2*(v2xplus+v2xminus)+beta2*h*(v2xxplus-v2xxminus))-1/2*(v2plus+v2minus)-Dapp*(1/2*(v2plus+v2minus)-v2minus)*wxminus(i);
+    %             v2plus=sum(v2(:,kk-1,j).*temp1(:));
+    %             if time+dt>10
+    %                 v2minus=0;
+    %             else
+    %                 v2minus=0.5;
+    %             end
+    %             penalty=h\beta1*(v2plus-v2minus);
+    %             v2xplus=v2(2,kk-1,j)*2/h+v2(3,kk-1,j)*2/h*3*(-1)+v2(4,kk-1,j)*2/h*6;
+    %             v2xminus=0;
+    %             v2xxplus=v2(3,kk-1,j)*(2/h)^2*3+v2(4,kk-1,j)*(2/h)^2*15*(-1);
+    %             v2xxminus=0;
+    %             AAl=(Dapp*(penalty+1/2*(v2xplus+v2xminus)+beta2*h*(v2xxplus-v2xxminus))-1/2*(v2plus+v2minus))*(-1).^(i-1)-Dapp*(1/2*(v2plus+v2minus)-v2plus)*wxplus(i);
+    %         elseif j==J
+    %             u2plus=sum(u2(:,kk-1,j).*ones(p1,1));
+    %             u2minus=sum(u2(:,kk-1,j).*ones(p1,1));
+    %             penalty=h\beta1*(u2plus-u2minus);
+    %             u2xplus=u2(2,kk-1,j)*2/h+u2(3,kk-1,j)*2/h*3*(-1)+u2(4,kk-1,j)*2/h*6;
+    %             u2xminus=u2(2,kk-1,j)*2/h+u2(3,kk-1,j)*2/h*3+u2(4,kk-1,j)*2/h*6;
+    %             u2xxplus=u2(3,kk-1,j)*(2/h)^2*3+u2(4,kk-1,j)*(2/h)^2*15*(-1);
+    %             u2xxminus=u2(3,kk-1,j)*(2/h)^2*3+u2(4,kk-1,j)*(2/h)^2*15;
+    %             Ar=Dapp*(penalty+1/2*(u2xplus+u2xminus)+beta2*h*(u2xxplus-u2xxminus))-1/2*(u2plus+u2minus)-Dapp*(1/2*(u2plus+u2minus)-u2minus)*wxminus(i);
+    %             u2plus=sum(u2(:,kk-1,j).*temp1(:));
+    %             u2minus=sum(u2(:,kk-1,j-1).*ones(p1,1));
+    %             penalty=h\beta1*(u2plus-u2minus);
+    %             u2xplus=u2(2,kk-1,j)*2/h+u2(3,kk-1,j)*2/h*3*(-1)+u2(4,kk-1,j)*2/h*6;
+    %             u2xminus=u2(2,kk-1,j-1)*2/h+u2(3,kk-1,j-1)*2/h*3+u2(4,kk-1,j-1)*2/h*6;
+    %             u2xxplus=u2(3,kk-1,j)*(2/h)^2*3+u2(4,kk-1,j)*(2/h)^2*15*(-1);
+    %             u2xxminus=u2(3,kk-1,j-1)*(2/h)^2*3+u2(4,kk-1,j-1)*(2/h)^2*15;
+    %             Al=(Dapp*(penalty+1/2*(u2xplus+u2xminus)+beta2*h*(u2xxplus-u2xxminus))-1/2*(u2plus+u2minus))*(-1).^(i-1)-Dapp*(1/2*(u2plus+u2minus)-u2plus)*wxplus(i);
+    %             v2plus=sum(v2(:,kk-1,j).*ones(p1,1));
+    %             v2minus=sum(v2(:,kk-1,j).*ones(p1,1));
+    %             penalty=h\beta1*(v2plus-v2minus);
+    %             v2xplus=v2(2,kk-1,j)*2/h+v2(3,kk-1,j)*2/h*3*(-1)+v2(4,kk-1,j)*2/h*6;
+    %             v2xminus=v2(2,kk-1,j)*2/h+v2(3,kk-1,j)*2/h*3+v2(4,kk-1,j)*2/h*6;
+    %             v2xxplus=v2(3,kk-1,j)*(2/h)^2*3+v2(4,kk-1,j)*(2/h)^2*15*(-1);
+    %             v2xxminus=v2(3,kk-1,j)*(2/h)^2*3+v2(4,kk-1,j)*(2/h)^2*15;
+    %             AAr=Dapp*(penalty+1/2*(v2xplus+v2xminus)+beta2*h*(v2xxplus-v2xxminus))-1/2*(v2plus+v2minus)-Dapp*(1/2*(v2plus+v2minus)-v2minus)*wxminus(i);
+    %             v2plus=sum(v2(:,kk-1,j).*temp1(:));
+    %             v2minus=sum(v2(:,kk-1,j-1).*ones(p1,1));
+    %             penalty=h\beta1*(v2plus-v2minus);
+    %             v2xplus=v2(2,kk-1,j)*2/h+v2(3,kk-1,j)*2/h*3*(-1)+v2(4,kk-1,j)*2/h*6;
+    %             v2xminus=v2(2,kk-1,j-1)*2/h+v2(3,kk-1,j-1)*2/h*3+v2(4,kk-1,j-1)*2/h*6;
+    %             v2xxplus=v2(3,kk-1,j)*(2/h)^2*3+v2(4,kk-1,j)*(2/h)^2*15*(-1);
+    %             v2xxminus=v2(3,kk-1,j-1)*(2/h)^2*3+v2(4,kk-1,j-1)*(2/h)^2*15;
+    %             AAl=(Dapp*(penalty+1/2*(v2xplus+v2xminus)+beta2*h*(v2xxplus-v2xxminus))-1/2*(v2plus+v2minus))*(-1).^(i-1)-Dapp*(1/2*(v2plus+v2minus)-v2plus)*wxplus(i);
+    %         else
+    %             u2plus=sum(u2(:,kk-1,j+1).*temp1(:));
+    %             u2minus=sum(u2(:,kk-1,j).*ones(p1,1));
+    %             penalty=h\beta1*(u2plus-u2minus);
+    %             u2xplus=u2(2,kk-1,j+1)*2/h+u2(3,kk-1,j+1)*2/h*3*(-1)+u2(4,kk-1,j+1)*2/h*6;
+    %             u2xminus=u2(2,kk-1,j)*2/h+u2(3,kk-1,j)*2/h*3+u2(4,kk-1,j)*2/h*6;
+    %             u2xxplus=u2(3,kk-1,j+1)*(2/h)^2*3+u2(4,kk-1,j+1)*(2/h)^2*15*(-1);
+    %             u2xxminus=u2(3,kk-1,j)*(2/h)^2*3+u2(4,kk-1,j)*(2/h)^2*15;
+    %             Ar=Dapp*(penalty+1/2*(u2xplus+u2xminus)+beta2*h*(u2xxplus-u2xxminus))-1/2*(u2plus+u2minus)-Dapp*(1/2*(u2plus+u2minus)-u2minus)*wxminus(i);
+    %             u2plus=sum(u2(:,kk-1,j).*temp1(:));
+    %             u2minus=sum(u2(:,kk-1,j-1).*ones(p1,1));
+    %             penalty=h\beta1*(u2plus-u2minus);
+    %             u2xplus=u2(2,kk-1,j)*2/h+u2(3,kk-1,j)*2/h*3*(-1)+u2(4,kk-1,j)*2/h*6;
+    %             u2xminus=u2(2,kk-1,j-1)*2/h+u2(3,kk-1,j-1)*2/h*3+u2(4,kk-1,j-1)*2/h*6;
+    %             u2xxplus=u2(3,kk-1,j)*(2/h)^2*3+u2(4,kk-1,j)*(2/h)^2*15*(-1);
+    %             u2xxminus=u2(3,kk-1,j-1)*(2/h)^2*3+u2(4,kk-1,j-1)*(2/h)^2*15;
+    %             Al=(Dapp*(penalty+1/2*(u2xplus+u2xminus)+beta2*h*(u2xxplus-u2xxminus))-1/2*(u2plus+u2minus))*(-1).^(i-1)-Dapp*(1/2*(u2plus+u2minus)-u2plus)*wxplus(i);
+    %             v2plus=sum(v2(:,kk-1,j+1).*temp1(:));
+    %             v2minus=sum(v2(:,kk-1,j).*ones(p1,1));
+    %             penalty=h\beta1*(v2plus-v2minus);
+    %             v2xplus=v2(2,kk-1,j+1)*2/h+v2(3,kk-1,j+1)*2/h*3*(-1)+v2(4,kk-1,j+1)*2/h*6;
+    %             v2xminus=v2(2,kk-1,j)*2/h+v2(3,kk-1,j)*2/h*3+v2(4,kk-1,j)*2/h*6;
+    %             v2xxplus=v2(3,kk-1,j+1)*(2/h)^2*3+v2(4,kk-1,j+1)*(2/h)^2*15*(-1);
+    %             v2xxminus=v2(3,kk-1,j)*(2/h)^2*3+v2(4,kk-1,j)*(2/h)^2*15;
+    %             AAr=Dapp*(penalty+1/2*(v2xplus+v2xminus)+beta2*h*(v2xxplus-v2xxminus))-1/2*(v2plus+v2minus)-Dapp*(1/2*(v2plus+v2minus)-v2minus)*wxminus(i);
+    %             v2plus=sum(v2(:,kk-1,j).*temp1(:));
+    %             v2minus=sum(v2(:,kk-1,j-1).*ones(p1,1));
+    %             penalty=h\beta1*(v2plus-v2minus);
+    %             v2xplus=v2(2,kk-1,j)*2/h+v2(3,kk-1,j)*2/h*3*(-1)+v2(4,kk-1,j)*2/h*6;
+    %             v2xminus=v2(2,kk-1,j-1)*2/h+v2(3,kk-1,j-1)*2/h*3+v2(4,kk-1,j-1)*2/h*6;
+    %             v2xxplus=v2(3,kk-1,j)*(2/h)^2*3+v2(4,kk-1,j)*(2/h)^2*15*(-1);
+    %             v2xxminus=v2(3,kk-1,j-1)*(2/h)^2*3+v2(4,kk-1,j-1)*(2/h)^2*15;
+    %             AAl=(Dapp*(penalty+1/2*(v2xplus+v2xminus)+beta2*h*(v2xxplus-v2xxminus))-1/2*(v2plus+v2minus))*(-1).^(i-1)-Dapp*(1/2*(v2plus+v2minus)-v2plus)*wxplus(i);
+    %         end
+    %         A(i)=Ar-Al;
+    %         AA(i)=AAr-AAl;
+    %     end
+    %     % W=M\(D_x-A)';
+    %     u(1:p1,kk,j)=u2(1:p1,kk-1,j)+((1+5*F)*M)\(D_x*u2(1:p1,kk-1,j)-Dapp*D_xx*u2(1:p1,kk-1,j)+A')*dt;
+    %     v(1:p1,kk,j)=v2(1:p1,kk-1,j)+((1+F)*M)\(D_x*v2(1:p1,kk-1,j)-Dapp*D_xx*v2(1:p1,kk-1,j)+AA')*dt;
+    % end
+    % %%% the limiter function down
+    % for j=1:J
+    %     if j==1
+    %         q=p1;
+    %         while(q>1)
+    %             aa=(2*q-3)*u(q,kk,j);
+    %             b=u(q-1,kk,j+1)-u(q-1,kk,j);
+    %             %                 c=u(q-1,kk,j)-u(q-1,kk,j-1);
+    %             %                 c=u(q-1,kk,j)-u(q-1,kk,J);%Periodic boundary conditions
+    %             c=u(q-1,kk,j);%left boundary conditions
+    %             if time+dt>10  %left boundary conditions
+    %                 c=u(q-1,kk,j)-0;
+    %             else
+    %                 c=u(q-1,kk,j)-0.5;
+    %             end
+    %             d=minmod(aa,b,c);
+    %             u(q,kk,j)=1/(2*q-3)*d;
+    %             aa=(2*q-3)*v(q,kk,j);
+    %             b=v(q-1,kk,j+1)-v(q-1,kk,j);
+    %             %                 c=u(q-1,kk,j)-u(q-1,kk,j-1);
+    %             %                 c=u(q-1,kk,j)-u(q-1,kk,J);%Periodic boundary conditions
+    %             c=v(q-1,kk,j);%left boundary conditions
+    %             if time+dt>10  %left boundary conditions
+    %                 c=v(q-1,kk,j)-0;
+    %             else
+    %                 c=v(q-1,kk,j)-0.5;
+    %             end
+    %             d=minmod(aa,b,c);
+    %             v(q,kk,j)=1/(2*q-3)*d;
+    %             q=q-1;
+    %         end
+    %     elseif j==J
+    %         q=p1;
+    %         while(q>1)
+    %             aa=(2*q-3)*u(q,kk,j);
+    %             %                 b=u(q-1,kk,j+1)-u(q-1,kk,j);
+    %             %                 b=u(q-1,kk,1)-u(q-1,kk,j);%Periodic boundary conditions
+    %             b=u(q-1,kk,j)-u(q-1,kk,j);  %right boundary conditions
+    %             c=u(q-1,kk,j)-u(q-1,kk,j-1);
+    %             d=minmod(aa,b,c);
+    %             u(q,kk,j)=1/(2*q-3)*d;
+    %             aa=(2*q-3)*v(q,kk,j);
+    %             %                 b=u(q-1,kk,j+1)-u(q-1,kk,j);
+    %             %                 b=u(q-1,kk,1)-u(q-1,kk,j);%Periodic boundary conditions
+    %             b=v(q-1,kk,j)-v(q-1,kk,j);  %right boundary conditions
+    %             c=v(q-1,kk,j)-v(q-1,kk,j-1);
+    %             d=minmod(aa,b,c);
+    %             v(q,kk,j)=1/(2*q-3)*d;
+    %             q=q-1;
+    %         end
+    %     else
+    %         q=p1;
+    %         while(q>1)
+    %             aa=(2*q-3)*u(q,kk,j);
+    %             b=u(q-1,kk,j+1)-u(q-1,kk,j);
+    %             c=u(q-1,kk,j)-u(q-1,kk,j-1);
+    %             d=minmod(aa,b,c);
+    %             u(q,kk,j)=1/(2*q-3)*d;
+    %             aa=(2*q-3)*v(q,kk,j);
+    %             b=v(q-1,kk,j+1)-v(q-1,kk,j);
+    %             c=v(q-1,kk,j)-v(q-1,kk,j-1);
+    %             d=minmod(aa,b,c);
+    %             v(q,kk,j)=1/(2*q-3)*d;
+    %             q=q-1;
+    %         end
+    %     end
+    % end
+    % %%% the limiter function up
+
+
+    time=time+dt;
+end
+%% x-coordinate
+
+for j=1:J
+    xx(1+(j-1)*p1:j*p1)=x_loc(j,2:p1+1);
+end
+X=length(xx);
+xxx(1:X+1)=[xx(1:X) x_right];
+%% return the value of function u
+for k=1:kk
+    for j=1:J
+        unum(k,1+(j-1)*p1:j*p1)=PP*u(:,k,j);
+        vnum(k,1+(j-1)*p1:j*p1)=PP*v(:,k,j);
+        usum(k,j)=(1+5*F)*sum(unum(k,1+(j-1)*p1:j*p1).*(xxx(2+(j-1)*p1:j*p1+1)-xxx(1+(j-1)*p1:j*p1)));
+        vsum(k,j)=(1+1*F)*sum(vnum(k,1+(j-1)*p1:j*p1).*(xxx(2+(j-1)*p1:j*p1+1)-xxx(1+(j-1)*p1:j*p1)));
+    end
+    Usum(k)=sum(usum(k,:));
+    Vsum(k)=sum(vsum(k,:));
+    massu1(k)=Usum(k)-Usum(1);
+    massv1(k)=Vsum(k)-Vsum(1);
+end
+
+%% plot the result
+dt=final_t/Nt;
+time=0;
+kk=1;
+while(time<final_t+dt)
+    unum1(kk)=unum(kk,end);
+    vnum1(kk)=vnum(kk,end);
+    uL(kk)=[1 1 1 1]*u(:,kk,J);
+    %sumuL(kk)=sum(uL(:)*dt);
+    sumuL(kk)=sum(unum1(:))*dt;
+    vL(kk)=[1 1 1 1]*v(:,kk,J);
+    %sumvL(kk)=sum(vL(:))*dt;
+    sumvL(kk)=sum(vnum1(:))*dt;
+    if time<10 || time==10
+        massu2(kk)=0.5*time-sumuL(kk);
+        massv2(kk)=0.5*time-sumvL(kk);
+        tm(kk)=time;
+    else
+        massu2(kk)=5-sumuL(kk);
+        massv2(kk)=5-sumvL(kk);
+        %        tm(kk)=time;
+    end
+    plot(xx,unum(kk,:),'r*',xx,vnum(kk,:),'b-')
+    axis([x_left,x_right,0,1]);
+    pause(0.00001)
+    time=time+dt;
+    kk=kk+1;
+end
+t=(0:dt:final_t);
+N=length(t);NN=length(unum1);
+if N~=NN
+    t=(0:dt:final_t-dt);
+end
+plot(t,unum1(1:NN),'r*',t,vnum1(1:NN),'b-')
+axis([0,final_t,0,0.7]);
+title(' solution at the column outlet')
+legend('numerical solution c_1','numerical solution c_2')
+xlabel('t (min)');
+ylabel('c (g/l)');
+t=(0:dt:final_t);
+%plot(t,massu1(:),'r--',t,massu2(:),'b-o',t,massv1(:),'y--',t,massv2(:),'g-o')
+% 绘制图形
+h1 = plot(t, massu1(:), ':');
+set(h1, 'Color', [1 0 0 1], 'LineWidth', 3); % 红色，透明度 0.5
+hold on;
+h2 = plot(t, massu2(:), '--');
+set(h2, 'Color', [0 1 0 1],'LineWidth', 3); % 绿色，透明度 0.8
+h3 = plot(t, massv1(:), ':');
+set(h3, 'Color', [0 0 1 1],'LineWidth', 3); % 蓝色，透明度 0.5
+h4 = plot(t, massv2(:), '--');
+set(h4, 'Color', [1 0.5 0 1],'LineWidth', 3); % 橙色，透明度 0.8
+legend('mass11','mass12','mass21','mass22')
+xlabel('t (min)');
+ylabel('relative mass');
