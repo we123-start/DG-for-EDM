@@ -2,12 +2,10 @@ clear
 %% basic value
 x_left=0;x_right=0.25;
 x_right_exact=0.25;
-Nt=10000; %20000
-J=80;
-L=0.25;
-%Dapp=0.00002;
-Dapp=(L)/(2*Nt);%u=1
-beta1=10; %100
+Nt=20000;
+J=100;
+Dapp=0.00002;
+beta1=1;
 beta2=1/12;
 h=(x_right-x_left)/J;
 final_t=15;

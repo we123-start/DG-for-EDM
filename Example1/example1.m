@@ -66,7 +66,67 @@ while(time<final_t)
         dt=final_t-time;
     end
     kk=kk+1;
-%     %%%%%% Euler method;
+%     %%%%% Euler method;
+%     for j=1:J
+%         for i=0:p
+%             if j==1
+%                 uplus=sum(u(:,kk-1,j+1).*temp1(:));
+%                 uminus=sum(u(:,kk-1,j).*ones(p1,1));
+%                 penalty=h\beta1*(uplus-uminus);
+%                 uxplus=u(2,kk-1,j+1)*2/h;
+%                 uxminus=u(2,kk-1,j)*2/h;
+%                 uxxplus=0;
+%                 uxxminus=0;
+%                 Ar=Dapp*(penalty+1/2*(uxplus+uxminus)+beta2*h*(uxxplus-uxxminus))-1/2*(uplus+uminus)-Dapp*(1/2*(uplus+uminus)-uminus)*vxminus(i+1);
+%                 uplus=sum(u(:,kk-1,j).*temp1(:));
+%                 uminus=0;
+%                 penalty=h\beta1*(uplus-uminus);
+%                 uxplus=u(2,kk-1,j)*2/h;
+%                 uxminus=0;
+%                 uxxplus=0;
+%                 uxxminus=0;
+%                 Al=(Dapp*(penalty+1/2*(uxplus+uxminus)+beta2*h*(uxxplus-uxxminus))-1/2*(uplus+uminus))*(-1).^i-Dapp*(1/2*(uplus+uminus)-uplus)*vxplus(i+1);
+%             elseif j==J
+%                 uplus=sum(u(:,kk-1,J).*temp1(:));
+%                 uminus=sum(u(:,kk-1,j).*ones(p1,1));
+%                 penalty=h\beta1*(uplus-uminus);
+%                 uxplus=u(2,kk-1,J)*2/h;
+%                 uxminus=u(2,kk-1,j)*2/h;
+%                 uxxplus=0;
+%                 uxxminus=0;
+%                 Ar=Dapp*(penalty+1/2*(uxplus+uxminus)+beta2*h*(uxxplus-uxxminus))-1/2*(uplus+uminus)-Dapp*(1/2*(uplus+uminus)-uminus)*vxminus(i+1);
+%                 uplus=sum(u(:,kk-1,j).*temp1(:));
+%                 uminus=sum(u(:,kk-1,j-1).*ones(p1,1));
+%                 penalty=h\beta1*(uplus-uminus);
+%                 uxplus=u(2,kk-1,j)*2/h;
+%                 uxminus=u(2,kk-1,j-1)*2/h;
+%                 uxxplus=0;
+%                 uxxminus=0;
+%                 Al=(Dapp*(penalty+1/2*(uxplus+uxminus)+beta2*h*(uxxplus-uxxminus))-1/2*(uplus+uminus))*(-1).^i-Dapp*(1/2*(uplus+uminus)-uplus)*vxplus(i+1);
+%             else
+%                 uplus=sum(u(:,kk-1,j+1).*temp1(:));
+%                 uminus=sum(u(:,kk-1,j).*ones(p1,1));
+%                 penalty=h\beta1*(uplus-uminus);
+%                 uxplus=u(2,kk-1,j+1)*2/h;
+%                 uxminus=u(2,kk-1,j)*2/h;
+%                 uxxplus=0;
+%                 uxxminus=0;
+%                 Ar=Dapp*(penalty+1/2*(uxplus+uxminus)+beta2*h*(uxxplus-uxxminus))-1/2*(uplus+uminus)-Dapp*(1/2*(uplus+uminus)-uminus)*vxminus(i+1);
+%                 uplus=sum(u(:,kk-1,j).*temp1(:));
+%                 uminus=sum(u(:,kk-1,j-1).*ones(p1,1));
+%                 penalty=h\beta1*(uplus-uminus);
+%                 uxplus=u(2,kk-1,j)*2/h;
+%                 uxminus=u(2,kk-1,j-1)*2/h;
+%                 uxxplus=0;
+%                 uxxminus=0;
+%                 Al=(Dapp*(penalty+1/2*(uxplus+uxminus)+beta2*h*(uxxplus-uxxminus))-1/2*(uplus+uminus))*(-1).^i-Dapp*(1/2*(uplus+uminus)-uplus)*vxplus(i+1);
+%             end
+%             A(i+1)=Ar-Al;
+%         end
+%         u(1:p1,kk,j)=u(1:p1,kk-1,j)+((1+a).*M)\(D_x*u(1:p1,kk-1,j)-Dapp*D_xx*u(1:p1,kk-1,j)+A')*dt;
+%     end
+
+    %% p=1
 %     for j=1:J
 %         for i=0:p%测试函数的个数
 %             if j==1
